@@ -6,38 +6,49 @@ Question centrale : le modèle identifie-t-il des comportements d'attaque ou des
 
 ## Résultats
 
-Après nettoyage et déduplication, le train et la validation contiennent chacun 38,9 % d'attaques, contre 51,4 % pour le test officiel. Les modèles sont ajustés sur le train; les comparaisons, explications et ablations sont faites sur la validation. Le test est réservé au compte rendu final.
+Après nettoyage, le train et la validation contiennent chacun 38,9 % d'attaques, contre 51,8 % pour le test officiel nettoyé avec ses recouvrements; cette proportion est de 51,4 % après leur retrait. Les modèles sont ajustés sur le train; les comparaisons, explications et ablations sont faites sur la validation. Les encodeurs d'arbres font partie du pipeline de recherche d'hyperparamètres : ils sont donc ajustés séparément dans chaque fold de validation croisée. Le test est réservé au compte rendu final.
 
 | Modèle | Partition | PR-AUC | ROC-AUC | F1 attaque |
 |---|---|---:|---:|---:|
 | Régression logistique | Validation | 0.9446 | 0.9589 | 0.8453 |
 | Random Forest | Validation | 0.9924 | 0.9946 | 0.9590 |
 | XGBoost | Validation | 0.9941 | 0.9958 | 0.9653 |
-| Régression logistique | Test officiel | 0.9562 | 0.9582 | 0.8387 |
-| Random Forest | Test officiel | 0.9761 | 0.9754 | 0.8461 |
-| XGBoost | Test officiel | 0.9755 | 0.9755 | 0.8496 |
+| Régression logistique | Test officiel nettoyé, recouvrements conservés | 0.9568 | 0.9581 | 0.8401 |
+| Random Forest | Test officiel nettoyé, recouvrements conservés | 0.9764 | 0.9751 | 0.8470 |
+| XGBoost | Test officiel nettoyé, recouvrements conservés | 0.9758 | 0.9753 | 0.8505 |
+| Régression logistique | Test sans recouvrements train/test | 0.9562 | 0.9582 | 0.8387 |
+| Random Forest | Test sans recouvrements train/test | 0.9761 | 0.9754 | 0.8461 |
+| XGBoost | Test sans recouvrements train/test | 0.9755 | 0.9755 | 0.8496 |
 
-Pour XGBoost, le rappel de la classe attaque passe de 0.963 en validation à 0.753 sur le test, tandis que la précision reste proche (0.967 puis 0.974). L'écart de F1 est donc principalement associé à une baisse du rappel. La différence de prévalence et le décalage des variables/familles d'attaque sont des explications possibles, pas une preuve de causalité. Le diagnostic descriptif du notebook intervient après l'évaluation finale et ne sert pas à retoucher le modèle.
+Pour XGBoost, le rappel de la classe attaque passe de 0.963 en validation à environ 0.754 sur le test officiel nettoyé, tandis que la précision reste proche (0.967 puis 0.974). L'écart de F1 est donc principalement associé à une baisse du rappel. La différence de prévalence et le décalage des variables/familles d'attaque sont des explications possibles, pas une preuve de causalité. Le diagnostic descriptif du notebook intervient après l'évaluation finale et ne sert pas à retoucher le modèle.
 
 ### Décalage train/test
 
-Après nettoyage, la prévalence des attaques est de 38,9 % dans le train et la validation, contre 51,4 % dans le test. La composition des familles change également : `Fuzzers` passe de 8,6 % du train à 14,9 % du test, et `Exploits` de 13,7 % à 18,7 %; la part `Normal` baisse de 61,1 % à 48,6 %.
+Après nettoyage, la prévalence des attaques est de 38,9 % dans le train et la validation, contre 51,8 % dans le test officiel nettoyé (51,4 % après retrait des recouvrements). La composition des familles change également : `Fuzzers` passe de 8,6 % du train à 15,0 % du test officiel, et `Exploits` de 13,7 % à 18,4 %; la part `Normal` baisse de 61,1 % à 48,2 %.
 
 Parmi les dix variables les plus importantes selon SHAP sur la validation, ces décalages univariés train/test sont observés :
 
 | Variable | KS D | Médiane train | Médiane test |
 |---|---:|---:|---:|
-| `dbytes` | 0.082 | 354 | 440 |
-| `ct_state_ttl` | 0.075 | 1 | 1 |
-| `ct_srv_dst` | 0.073 | 3 | 3 |
-| `sttl` | 0.070 | 254 | 62 |
-| `sbytes` | 0.063 | 862 | 972 |
+| `dbytes` | 0.077 | 354 | 354 |
+| `ct_srv_dst` | 0.072 | 3 | 3 |
+| `ct_state_ttl` | 0.069 | 1 | 1 |
+| `sttl` | 0.066 | 254 | 62 |
+| `ct_dst_src_ltm` | 0.062 | 2 | 2 |
 
 KS D compare les distributions complètes, pas seulement les médianes; ces écarts descriptifs ne démontrent pas à eux seuls la cause de la baisse de rappel.
+
+### Sensibilité aux doublons entre partitions
+
+Après nettoyage interne (valeurs manquantes/non finies et doublons dans chaque partition), le test officiel contient 107 740 flux. Parmi eux, 1 722 (1,6 %) ont les mêmes caractéristiques qu'un flux du train. Le notebook présente les scores une fois sur tous les flux du test officiel nettoyé, puis sur les 106 018 flux restants après leur retrait. Les F1 changent peu : XGBoost 0.8505 contre 0.8496, Random Forest 0.8470 contre 0.8461 et régression logistique 0.8401 contre 0.8387. La version sans recouvrements est la mesure de sensibilité; le score sur le test officiel nettoyé permet de voir l'effet de cette décision méthodologique.
 
 ### Ablation sur validation
 
 En retirant `sttl` et `ct_state_ttl`, le F1 Random Forest passe de 0.9590 à 0.9583 et la PR-AUC de 0.9924 à 0.9919. La faible baisse observée suggère que le modèle RF conserve presque les mêmes performances de validation sans ces variables; elle ne prouve pas une généralisation hors de ce jeu.
+
+### Stabilité SHAP
+
+Trois Random Forest sont entraînées sur des sous-échantillons stratifiés différents (80 % du sous-ensemble d'entraînement). Les trois utilisent le même `X_val` indépendant pour l'explication; le Jaccard moyen des ensembles top-10 est de 1.00.
 
 ### Figures
 

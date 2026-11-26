@@ -22,6 +22,10 @@ Après nettoyage, le train et la validation contiennent chacun 38,9 % d'attaques
 
 Pour XGBoost, le rappel de la classe attaque passe de 0.963 en validation à environ 0.754 sur le test officiel nettoyé, tandis que la précision reste proche (0.967 puis 0.974). L'écart de F1 est donc principalement associé à une baisse du rappel. La différence de prévalence et le décalage des variables/familles d'attaque sont des explications possibles, pas une preuve de causalité. Le diagnostic descriptif du notebook intervient après l'évaluation finale et ne sert pas à retoucher le modèle.
 
+![Courbes précision-rappel calculées sur la validation](figures/pr_curves_validation.png)
+
+Au seuil de référence fixé à 0,5, XGBoost obtient sur la validation 141 faux positifs et 160 faux négatifs (matrice de confusion `[[6700, 141], [160, 4188]]`, ordre normal/attaque). Les faux négatifs correspondent à des attaques manquées; les faux positifs consomment du temps d'analyste et alimentent la fatigue d'alerte. Ce seuil est conservé comme référence, pas présenté comme optimal. En pratique, son choix dépend du coût relatif des erreurs et de la capacité de triage; toute calibration doit se faire sur la validation, jamais sur le test final.
+
 ### Décalage train/test
 
 Après nettoyage, la prévalence des attaques est de 38,9 % dans le train et la validation, contre 51,8 % dans le test officiel nettoyé (51,4 % après retrait des recouvrements). La composition des familles change également : `Fuzzers` passe de 8,6 % du train à 15,0 % du test officiel, et `Exploits` de 13,7 % à 18,4 %; la part `Normal` baisse de 61,1 % à 48,2 %.
@@ -38,9 +42,13 @@ Parmi les dix variables les plus importantes selon SHAP sur la validation, ces d
 
 KS D compare les distributions complètes, pas seulement les médianes; ces écarts descriptifs ne démontrent pas à eux seuls la cause de la baisse de rappel.
 
+![Importances RF MDI, permutation et SHAP calculées sur la validation](figures/feature_importance_validation.png)
+
 ### Sensibilité aux doublons entre partitions
 
 Après nettoyage interne (valeurs manquantes/non finies et doublons dans chaque partition), le test officiel contient 107 740 flux. Parmi eux, 1 722 (1,6 %) ont les mêmes caractéristiques qu'un flux du train. Le notebook présente les scores une fois sur tous les flux du test officiel nettoyé, puis sur les 106 018 flux restants après leur retrait. Les F1 changent peu : XGBoost 0.8505 contre 0.8496, Random Forest 0.8470 contre 0.8461 et régression logistique 0.8401 contre 0.8387. La version sans recouvrements est la mesure de sensibilité; le score sur le test officiel nettoyé permet de voir l'effet de cette décision méthodologique.
+
+![F1 sur la validation et les deux variantes du test](figures/f1_validation_vs_test.png)
 
 ### Ablation sur validation
 
@@ -50,21 +58,7 @@ En retirant `sttl` et `ct_state_ttl`, le F1 Random Forest passe de 0.9590 à 0.9
 
 Trois Random Forest sont entraînées sur des sous-échantillons stratifiés différents (80 % du sous-ensemble d'entraînement). Les trois utilisent le même `X_val` indépendant pour l'explication; le Jaccard moyen des ensembles top-10 est de 1.00.
 
-### Figures
-
-Courbes précision-rappel calculées sur la validation :
-
-![Courbes précision-rappel sur la validation](figures/pr_curves_validation.png)
-
-Importances RF calculées sur la validation :
-
-![Importances des variables sur la validation](figures/feature_importance_validation.png)
-
-Comparaison du F1 validation/test pour le compte rendu post hoc :
-
-![F1 validation et test](figures/f1_validation_vs_test.png)
-
-Les images sont produites par les cellules du notebook. Exécuter le notebook de haut en bas pour les régénérer.
+Les figures intégrées ci-dessus sont produites par les cellules du notebook. Exécuter le notebook de haut en bas pour les régénérer.
 
 ## Données
 
@@ -87,7 +81,7 @@ python -m pip install -r requirements.txt
 jupyter lab
 ```
 
-Ouvrir JupyterLab depuis l'URL affichée dans le terminal, puis ouvrir `projet1_unsw_nb15_interpretabilite.ipynb`. Exécuter les cellules dans l'ordre. La dernière section est l'évaluation unique sur le test officiel; ne pas modifier le modèle à partir de ses résultats.
+Ouvrir JupyterLab depuis l'URL affichée dans le terminal, puis ouvrir `projet1_unsw_nb15_interpretabilite.ipynb`. Exécuter les cellules dans l'ordre. Le test officiel n'est évalué que dans le bloc final, qui compare ses résultats avec et sans recouvrements train/test; ne pas modifier le modèle à partir de ces résultats.
 
 ## Reproductibilité et limites
 
